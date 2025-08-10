@@ -1,4 +1,4 @@
-# Redis Pixel Canvas
+# Redis Pixel War
 
 A live, collaborative pixel war showcasing Redis as a multi‑model platform:
 - Primary storage: Redis Hash stores pixel colors.
