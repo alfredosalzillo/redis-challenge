@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Redis Pixel Canvas
+
+A live, collaborative pixel war showcasing Redis as a multi‑model platform:
+- Primary storage: Redis Hash stores pixel colors.
+- Real‑time: Redis Pub/Sub broadcasts pixel updates consumed by Server‑Sent Events (SSE).
+- History/Audit: Each update is appended to a Redis Stream.
+- Presence: Redis ZSET + HASH track who is online and their display names.
+
+Built with Next.js (App Router) and MUI.
 
 ## Getting Started
 
-First, run the development server:
+1. Prerequisites:
+   - Node.js 18+
+   - A Redis instance (local or hosted). Set REDIS_URL env var like `redis://localhost:6379`.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+2. Install dependencies:
+   - npm install
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. Run the dev server:
+   - REDIS_URL=redis://localhost:6379 npm run dev
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+4. Open the app:
+   - http://localhost:3000 (the game runs on the home page)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## How it works
+- Storage
+  - Key `canvas:colors` (Hash): maps pixel index to hex color. The pixel index is computed as `idx = y * WIDTH + x`.
+  - Key `canvas:owners` (Hash): optional mapping from pixel index to the userId who last painted it.
+- Real‑time updates
+  - Pub/Sub channel `canvas:updates`: each pixel change is published as a JSON message `{ x, y, idx, color, userId, at }`.
+  - SSE endpoint `GET /api/stream`: clients receive server‑sent events:
+    - event: `pixel` — payload is the published pixel JSON above.
+    - event: `presence` — periodic hint so clients refresh online users.
+- Bootstrap/load
+  - `GET /api/bootstrap`: scans `canvas:colors` via HSCAN and returns `{ colors: Record<idx, color> }`.
+- Presence
+  - Keys: `presence:online` (ZSET of last‑seen timestamps), `presence:users` (HASH of userId -> name).
+  - `POST /api/presence/heartbeat` with `{ userId, name? }`: updates presence and stores a display name.
+  - `GET /api/users/online`: returns `{ users: { id, name }[] }` of currently online users.
+- Leaderboard & user info
+  - `GET /api/users/top`: returns the top conquerors by owned pixels with percentage of the board.
+  - `GET /api/users/me?id=...`: returns the current user's stats.
+- Streams (history)
+  - Redis Stream `stream:canvas`: each pixel update is appended for auditing/time‑travel.
 
-## Learn More
+## Environment
+- REDIS_URL: Redis connection URI (e.g., redis://localhost:6379)
+- REDIS_PASSWORD: Redis password (if applicable)
 
-To learn more about Next.js, take a look at the following resources:
+## Notes
+- The canvas initializes white and progressively fills as data loads and real‑time updates arrive.
+- SSE periodically emits a small `presence` event; clients use it to refresh presence and leaderboards.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Last updated: 2025-08-10.
